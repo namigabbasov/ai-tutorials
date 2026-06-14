@@ -1,0 +1,1247 @@
+---
+title: "Vis 2"
+format: pdf
+editor: visual
+---
+
+```{r}
+#Set directory 
+#rm(list = ls())
+setwd("/Users/namigabbasov/Library/Mobile Documents/com~apple~CloudDocs/Statistical training/R files/Rworkshop")
+```
+
+```{r}
+#install.packages("ozmaps")
+#install.packages("rmapshaper")
+#install.packages("rnaturalearth")
+#install.packages("sf")
+#install.packages("animation")
+#install.packages("gifski")
+#install.packages("tmap")
+library(tmap)
+library(maps)
+library(tmap)
+library(dplyr)
+library(rmapshaper)
+library(sf)
+library(ggplot2)
+library(tidyverse)
+library(ggplot2)
+library(rnaturalearth)
+library(ggthemes)
+library(ggplot2)
+library(sf)
+library(viridis)
+library(leaflet)
+library(rnaturalearth)
+library(leaflet)
+library(sf)
+library(maps)
+library(leaflet)
+library(leaflegend)
+library(sf)
+library(osmdata)
+library(fontawesome)
+library(leaflet)
+library(osmdata)
+library(WDI)
+library(timetk)
+library(dplyr)
+library(zoo)
+library(datasets)
+library(gganimate)
+library(animation)
+library(gifski)
+```
+
+```{r}
+#import data
+total<-read.csv("https://raw.githubusercontent.com/UnitForDataScience/RWorkshop/main/RWorkshop_data.csv")
+data(World) # load world data to get geographical info
+total$iso_a3<-total$iso3c #crate a new variable for merge
+merge_inner <- inner_join(World, total, by = "iso_a3") #create new data
+```
+
+# Today's Agenda
+
+## 1). Two more Geoms: Faceting and Geom_Text
+
+## 2). Which Graph/Geom?
+
+## 3). Maps in R
+
+## 4). Extensions to ggplot
+
+## ggplot Basic
+
+1.  Data
+
+2.  Mapping
+
+3.  geom\_ type
+
+```{r}
+ggplot(data = total, mapping = aes(x= undp_hdi, y = gaiscore))+
+  geom_point()
+
+ggplot(total, aes(undp_hdi, gaiscore))+
+  geom_point()
+```
+
+### Faceting
+
+Faceting in ggplot2 is a technique for creating multiple plots within a single larger plot. Each small plot displays a subset of the data, making it easier to compare different parts of the data or explore variations across categories or groups. There are two main faceting functions in ggplot2:
+
+-   **`facet_wrap()`**: This function is used when you want to facet by a single variable. It arranges the small plots in rows or columns, with each row or column containing multiple plots.
+
+-   **`facet_grid()`**: This function creates a grid of plots by specifying which variables define the rows and columns of the grid.
+
+```{r}
+#A basic faceting graph
+f1 <- total |>
+  filter(
+    !is.na(gaiscore),
+    !is.na(undp_hdi),
+    !is.na(regime_status_name),
+    year %in% 2000:2020
+  ) |>
+  ggplot(aes(x = undp_hdi, y = gaiscore)) +
+  geom_point() +
+  facet_wrap(~ regime_status_name) +
+  labs(
+    title = "Human Development Index vs Global Acceptance Index",
+    x = "Human Development Index",
+    y = "Global Acceptance Index"
+  )
+f1
+```
+
+```{r}
+#Add a third variable and other aesthetics 
+f2 <- merge_inner |>
+  filter(
+    !is.na(gaiscore),
+    !is.na(undp_hdi),
+    !is.na(regime_status_name),
+    !is.na(colonial),
+    year %in% 2000:2020
+  ) |>
+  mutate(colonial= ifelse(colonial == 0, "No", "Yes")) |>
+  ggplot(aes(x = undp_hdi, y = gaiscore)) +
+  geom_point(aes(color = democratic_performance_name)) +
+  facet_wrap(~ continent) +
+  labs(
+    title = "Human Development Index vs Global Acceptance Index",
+    x = "Human Development Index",
+    y = "Global Acceptance Index",
+    color = "Political Regimes"
+  ) +
+  theme_bw()
+f2
+```
+
+```{r}
+#How about facet_grid? How is it different from wrap? 
+f3 <- merge_inner |>
+  filter(
+    !is.na(gaiscore),
+    !is.na(undp_hdi),
+    !is.na(regime_status_name),
+    !is.na(colonial),
+    year %in% 2000:2005
+  ) |>
+  mutate(colonial= ifelse(colonial == 0, "No", "Yes")) |>
+  ggplot(aes(x = undp_hdi, y = gaiscore, color = colonial)) +
+  geom_point() +
+  facet_grid(colonial~ continent) +        # Use two variables
+  labs(
+    title = "Human Development Index vs Global Acceptance Index",
+    x = "Human Development Index",
+    y = "Global Acceptance Index",
+    color = "Colonized"
+  ) +
+  guides(color = "none")
+  theme_bw()
+f3
+```
+
+```{r}
+
+#Let's explore one more facet_grid with more panels 
+gen_par <- total |>                              # data transformation
+  select(vdem_partipdem, vdem_gender, regime_status_name, ht_colonial) |>
+  mutate(
+    colonial = recode_factor(
+      ht_colonial,
+      '0' = "Never colonized",
+      '1' = "Dutch",
+      '2' = "Spanish",
+      '3' = "Italian",
+      '4' = "US",
+      '5' = "British",
+      '6' = "French",
+      '7' = "Portuguese",
+      '8' = "Others",
+      '9' = "British-French",
+      '10' = "Others"
+    )
+  ) |>
+  na.omit()
+
+f4<-ggplot(                               
+  data = gen_par,
+  mapping = aes(x = vdem_partipdem, y = vdem_gender)
+) +
+  geom_point(aes(color = regime_status_name, shape = regime_status_name), na.rm = T)+
+  geom_smooth(method = "lm") +
+  labs(
+    title = "Women Political Empowerment vs Participatory Democracy",
+    x = "Participatory Democracy Index",
+    y = "Women Political Empowerment Index",
+    color = "Regime Types",
+    shape = "Regime Types"
+  ) +
+  scale_color_colorblind() +
+  facet_grid(colonial ~ regime_status_name)
+f4
+```
+
+```{r}
+#now change grid to wrap
+gen_par <- total |>                                     
+  select(vdem_partipdem, vdem_gender, regime_status_name, ht_colonial) |>
+  mutate(colonial = recode_factor(ht_colonial,
+      '0' = "Never colonized",
+      '1' = "Dutch",
+      '2' = "Spanish",
+      '3' = "Italian",
+      '4' = "US",
+      '5' = "British",
+      '6' = "French",
+      '7' = "Portuguese",
+      '8' = "Others",
+      '9' = "British-French",
+      '10' = "Others"
+    )
+  ) |>
+  na.omit()
+
+f5<-ggplot(                                             
+  data = gen_par,
+  mapping = aes(x = vdem_partipdem, y = vdem_gender)
+) +
+  geom_point(aes(color = regime_status_name, shape = regime_status_name), na.rm = TRUE) +
+  geom_smooth(method = "lm") +
+  labs(
+    title = "Women Political Empowerment vs Participatory Democracy",
+    x = "Participatory Democracy Index",
+    y = "Women Political Empowerment Index",
+    color = "Regime Types",
+    shape = "Regime Types"
+  ) +
+  scale_color_colorblind() +
+  guides(color="none", shape="none")+
+  facet_wrap(colonial~regime_status_name)
+f5
+```
+
+### Geom_Text
+
+```{r}
+#A basic geom_text
+t1<-total|> 
+  filter(!is.na(iso3c), 
+         !is.na(gaiscore), 
+         !is.na(undp_hdi), 
+         year==2000, 
+         !is.na(regime_status_name)) |>
+  ggplot(aes(x=undp_hdi, y=gaiscore))+
+  geom_point(color="darkorange")+
+  geom_text(aes(label=iso3c), color="blue")+ # labels from 'iso3c' column
+  labs(
+    title = "Global Acceptance Index vs Human Development Index",
+    subtitle = "by Regime Status",
+    x = "Human Development Index (HDI)",
+    y = "Global Acceptance Index")
+t1
+```
+
+```{r}
+#let's make a customized plot
+t2 <- total |>
+  filter(
+    !is.na(iso3c),
+    !is.na(gaiscore),
+    !is.na(undp_hdi),
+    year==2000,
+    !is.na(regime_status_name)
+  ) |>
+  ggplot(aes(x = undp_hdi, y = gaiscore)) +
+  
+  
+  geom_point(                     # Create a scatterplot with  point aesthetics
+    size = 1,                     # Adjust the size of the points
+    alpha = 1,                    # Adjust the transparency of the points
+    stroke = 1,                   # Add a border around points
+    shape = 19                    # Use a solid circle as the point shape
+  ) +
+  geom_text(                      # Add labels for data points (ISO3 codes)
+    aes(label = iso3c),
+    nudge_x = 0.01,               # Adjust the horizontal position of labels
+    nudge_y = -0.1,               # Adjust the vertical position of labels
+    check_overlap = T,            # adjust label positions to avoid overlap
+    size = 3,                    # Adjust the size of the labels
+    color = "red"
+  ) +
+  labs(
+    title = "Global Acceptance Index vs. Human Development Index (2000)",
+    x = "Human Development Index",
+    y = "Global Acceptance Index") +
+  theme_classic()    
+t2
+```
+
+```{r}
+#let's add a color aesthetics(regime type)
+t3 <- total |>
+  filter(
+    !is.na(iso3c),
+    !is.na(gaiscore),
+    !is.na(undp_hdi),
+    year==2000,
+    !is.na(regime_status_name)
+  ) |>
+  ggplot(aes(x = undp_hdi, y = gaiscore, color = regime_status_name)) +
+  geom_point(                 #Create a scatter-plot with point aesthetics
+    size = 1,                 # Adjust the size of the points
+    alpha = 1,                # Adjust the transparency of the points
+    stroke = 1,               # Add a border around points
+    shape = 19                # Use a solid circle as the point shape
+  ) +
+  geom_text(                  #Add labels for data points (ISO3 codes)
+    aes(label = iso3c),
+    nudge_x = 0.01,           # Adjust the horizontal position of labels
+    nudge_y = -0.1,           # Adjust the vertical position of labels
+    check_overlap = T,        # Adjust label positions to avoid overlap
+    size = 3                # Adjust the size of the labels
+  ) +
+  labs(                       
+    title = "Global Acceptance Index vs. Human Development Index(2000)",
+    x = "Human Development Index",
+    y = "Global Acceptance Index",
+    color="Regime Types"
+  ) +
+  theme_clean()                           
+t3
+```
+
+### How Do I Know Which Code/Graph I Should Use?
+
+\
+Deciding which code or graph to use in **`ggplot2`** depends on the questions you want to answer, the message you want to convey with your visualization, and off course, the nature of your data. Here's a step-by-step guide to help you choose the right code and graph in **`ggplot2`**:
+
+1.  **Define Your Objectives:** What insights/stories do you want to convey to your audience?
+
+    -   compare values
+    -   show distributions
+    -   highlight trends
+    -   explore relationships? temporal and spatial?
+
+    | **Variable Type**        | **Common `geom_` Visualizations**            | **Use Case**                                        |
+    |------------------|--------------------------|----------------------------|
+    | Continuous               | **`geom_line()`**, **`geom_smooth()`**       | Time series, trends                                 |
+    |                          | **`geom_point()`**                           | Scatter plots                                       |
+    |                          | **`geom_histogram()`**, **`geom_density()`** | Distribution                                        |
+    |                          | **`geom_boxplot()`**                         | Distribution, outliers                              |
+    | Categorical              | **`geom_bar()`**                             | Bar charts                                          |
+    |                          | **`geom_col()`**                             | When you already have counts                        |
+    |                          | **`geom_text()`**, **`geom_label()`**        | Adding text labels to plots                         |
+    | Two Continuous           | **`geom_point()`**                           | Scatter plots                                       |
+    |                          | **`geom_smooth()`**                          | Adding a smooth line to scatter plots               |
+    |                          | **`geom_contour()`**, **`geom_tile()`**      | For displaying three variables                      |
+    | Two Categorical          | **`geom_jitter()`**                          | Scatter plot for two categorical variables          |
+    |                          | **`geom_count()`**                           | Count overlapping points                            |
+    | Continuous + Categorical | **`geom_boxplot()`**                         | Compare distribution across categories              |
+    |                          | **`geom_violin()`**                          | Combine boxplot and density plot                    |
+    | Many Variables           | **`geom_tile()`**, **`geom_raster()`**       | Heatmaps                                            |
+    |                          | **`geom_segment()`**, **`geom_curve()`**     | Complex relationships between two or more variables |
+
+2.  **Understand Your Data:** What type of data are you working with. For instance, numeric, categorical, time series?
+
+3.  **Choose Right Aesthetics (aes):** x-axis, y-axis, color, size, shape, label that represent the variables you want to visualize.
+
+4.  **Select Right Graph Type (Geom)**: Choose a graph type that best represents your data. For instance:
+
+    -   Use bar charts for comparing categorical data.
+    -   Use scatter plots to show relationships between two continuous variables.
+    -   Use line charts for time series data.
+
+5.  **Set Scales and Themes:** You can customize axis labels, titles, fonts, colors, and other visual elements using **`scale_`** and **`theme_`** functions.
+
+6.  **Experiment and Iterate:**
+
+    -   Always experiment with different geoms, aesthetics, and settings.
+    -   Create multiple versions of your plot to see which one best conveys your message.
+
+7.  **Practice and Learn:**
+
+    -   Becoming proficient with **`ggplot2`** often requires practice and learning from experience.
+
+    -   Explore the **`ggplot2`** documentation, online tutorials, and galleries of data visualizations for inspiration.
+
+[***Data visualization is both art and science. The choice of code and graph should align with your goals and effectively convey the insights you want to share with your audience.***]{.underline}
+
+## 1. Create Maps with R
+
+### **Base Packages**
+
+1.  **`maps`**: Provides a range of simple map plots.
+
+2.  **`maptools`**: Tools for reading and manipulating spatial data, which can then be used with **`ggplot2`** or other packages.
+
+### **Specialized Packages**
+
+1.  **`ggmap`**: An extension to **`ggplot2`** that allows for the easy addition of raster map backgrounds.
+
+2.  **`ggspatial`**: Another extension to **`ggplot2`** for spatial data visualization.
+
+3.  **`tmap`**: Thematic maps, designed particularly for rendering static and interactive web maps.
+
+4.  **`leaflet`**: Allows for the creation of interactive web maps within R.
+
+5.  **`sf`**: Handles simple features, the standard way to encode vector data. Integrates well with **`ggplot2`** and **`dplyr`**.
+
+6.  **`sp`**: A framework for managing spatial data but largely superseded by **`sf`**.
+
+7.  **`raster`**: Enables reading, writing, manipulating, and analyzing raster data (gridded data).
+
+8.  **`rgdal`**: Provides bindings to the GDAL library for spatial data operations.
+
+9.  **`mapview`**: Quickly visualize **`sf`** and **`Raster`** objects, based on **`leaflet`**.
+
+10. **`rayshader`**: For 3D plotting of topographic maps.
+
+### **Mapping APIs**
+
+1.  **`osmdata`**: To import OpenStreetMap data.
+
+2.  **`RGoogleMaps`**: Provides an interface to the Google Maps API.
+
+### **GIS Packages**
+
+1.  **`GRASS7`**: R interface to the GRASS GIS software.
+
+2.  **`rgeos`**: Interface to Geometry Engine - Open Source (GEOS) for advanced GIS operations.
+
+### **Miscellaneous**
+
+1.  **`cartography`**: Offers additional cartographic tools.
+
+2.  **`geosphere`**: Spherical trigonometry; for computing distances and related measures for geographic (lat/lon) coordinates.
+
+3.  **`oce`**: Provides a variety of tools for working with oceanographic data, including sea-level maps.
+
+### **What Should I Choose?**
+
+-   [**Different packages serve different purposes and may be better suited to different types of projects. Your choice will depend on what exactly you're looking to accomplish.**]{.underline}
+
+### 1.1 Polygon maps
+
+geom_polygon() is a straightforward way to create maps. Although the maps package may not offer the highest accuracy or the most recent data, it comes pre-installed with R, making it a convenient starting point. Below, you'll find a dataset that defines the county boundaries for Arizona. There is one row per polygon vertex.
+
+```{r}
+#load Arizona map 
+AZ<- map_data("county", "arizona") # map_data grabs longitude and latitude of certain geographical area.
+head(AZ)
+```
+
+```{r}
+# scatterplot of longitude and latitude as continuous variables 
+ggplot(AZ, aes(long, lat)) +  
+  geom_point(size = .25, show.legend = T)
+```
+
+```{r}
+# add coord_quickmap() to set the aspect ratio correctly for geographic maps
+ggplot(AZ, aes(long, lat)) +  
+  geom_point(size = .25, show.legend = T) +
+  coord_quickmap()
+```
+
+```{r}
+# change  geom_point to geom_polygon, which is used to create polygons on a plot. It is suitable for tasks such as creating filled regions, choropleth maps, and other visualizations that involve drawing shapes with closed boundaries.
+ggplot(AZ, aes(long, lat, group = group)) +
+  geom_polygon(fill = "white", colour = "grey50") + 
+  coord_quickmap()
+
+ggplot(car_data, aes(lon, lat, group =cid, fill = cid)) +
+  geom_polygon(fill = "white", colour = "grey50") + 
+  coord_quickmap()
+
+```
+
+```{r}
+# add fill aesthetics 
+ggplot(AZ, aes(long, lat, group = group, fill = subregion)) +
+  geom_polygon(colour = "grey50") + 
+  coord_quickmap()
+
+states<-map_data("state")
+ggplot(states, aes(long, lat, group = group)) +
+  geom_polygon(aes(fill =region)) + 
+  guides(fill = "none")
+  coord_quickmap()
+```
+
+```{r}
+# let's add state labels 
+library(maps)
+states <- map_data("state") # Get state map data
+centroids <- states |> # Calculate centroids of polygons
+  group_by(region) |>
+  summarise(m_long = mean(long), m_lat = mean(lat), m_group = mode(group))
+
+# Create map
+ggplot(states, aes(x = long, y = lat, group = group, fill = region)) +
+  geom_polygon(colour = "white") +
+  geom_text(data = centroids, aes(label = region, x =m_long, y = m_lat, group = m_group), size = 3) +
+  coord_quickmap() +
+  labs(title = "Map of US States", x = "Longitude", y = "Latitude")+
+  guides(fill = "none")
+```
+
+```{r}
+# coor_map:creates maps that require accurate representation of geographic features and shapes.
+ggplot(AZ 
+       |> filter(subregion == "maricopa"), aes(long, lat, group = group)) +
+  geom_polygon(fill = "blue", colour = "grey50") + 
+  coord_map()
+```
+
+```{r}
+# another example: Canada
+can<- map_data("world", region = "Canada")   #Get map data for Canada
+ggplot(can, aes(long, lat, group = group)) +
+  geom_polygon(fill = "white", colour = "grey50") + 
+  labs(title = "Canada Map") +
+  coord_map()
+```
+
+```{r}
+# Antarctica Map with coord_polar()
+antarctica_map <- map_data("world", region = "Antarctica")
+ggplot(antarctica_map, aes(long, lat, group = group)) +
+  geom_polygon(fill = "white", color = "grey50") +
+  labs(title = "Antarctica Map") +
+   coord_map()
+```
+
+### 1.2 Simple Features sf()
+
+```{r}
+# Create a ggplot map using coord_sf()
+library(rnaturalearth)
+world_map <- ne_countries(scale = "medium", returnclass = "sf")  # Get world map data
+ggplot(data = world_map) + 
+  geom_sf() +
+  coord_sf() +
+  labs(title = "World Map with Simple Features")
+```
+
+```{r}
+#Layered maps with ordinal level variable
+data(World, metro)
+ggplot(data = World) +
+  geom_sf(aes(fill = economy)) +
+  geom_sf(data = metro, color = "blue", alpha = 0.4)+
+  coord_sf()+
+  labs(title = "World Map with Economic Development Level and Metropolitan Areas")
+```
+
+```{r}
+#Layered maps with continuous variables
+data(World, rivers)
+ggplot(data = World) +
+  geom_sf(aes(fill = life_exp)) +
+  geom_sf(data = rivers, color = "lightblue", alpha = 0.4)+
+  scale_fill_viridis_c(option = "plasma", trans = "sqrt") +
+  geom_sf_text(aes(label = iso_a3), size = 2)  # Use geom_sf_text for spatial data
+```
+
+```{r}
+# let's practice with our Workshop data
+
+# We first need to add geographical info to our Workshop data 
+data(World) # load world data to get geographical info
+view(World) 
+total$iso_a3<-total$iso3c #crate a new variable for merge
+merge_inner <- inner_join(World, total, by = "iso_a3") #create new data
+view(merge_inner)
+
+#Merging is critical data transformation skill: Below is alternative coding
+#merge_base<-merge(World, total, by = "iso_a3") # you should get equivalent to inner_join
+#merge_base_all<-merge(World, total, by = "iso_a3", all = TRUE) #you should get equivalent to full_join
+#merge_left <- left_join(World, total, by = "iso_a3")    
+#merge_right <- right_join(World, total, by = "iso_a3")
+#merge_full <- full_join(World, total, by = "iso_a3")
+```
+
+```{r}
+#regime types
+ggplot(merge_inner |> 
+         filter(!is.na(democratic_performance_name) & year == 2020)) +
+  geom_sf(aes(fill = democratic_performance_name)) +
+  geom_sf_text(aes(label = iso_a3), size = 2) +
+  coord_sf() +
+  labs(fill = "Regime Types")
+```
+
+### 1.3 Thematic map: tmap
+
+```{r}
+#install.packages("remotes")
+#dovetails::install_github("tmaptools")
+#install_github("r-tmap/tmap")
+#remove.packages("tmap")
+#install.packages("tmap")
+library(tmap)
+
+
+# A basic tmap: Acceptance of LGBTQ+ rights 
+tmap_mode("plot") #this is code for static plot: so far we have looked only static plots. 
+tm_shape(merge_inner) +
+  tm_polygons("gaiscore", palette = "RdYlBu")+
+  tm_layout(bg.color = "skyblue", inner.margins = c(0, .02, .02, .02))
+
+#or quick map
+qtm(merge_inner, fill = "gaiscore")
+```
+
+```{r}
+# Add more elements 
+#tmap_style("white")
+tm_shape(merge_inner |> 
+           filter(!is.na(gaiscore)) |> 
+           mutate(category = case_when(
+    gaiscore <= 3 ~ "1: Critical Situation (Urgent need for improvement)",
+    gaiscore > 3 & gaiscore <= 5 ~ "2: Limited Acceptance (Some rights recognized)",
+    gaiscore > 5 & gaiscore <= 7 ~ "3: Moderate Acceptance (Legal protections in place)",
+    gaiscore > 7 & gaiscore <= 9 ~ "4: Broad Acceptance (Widespread social acceptance)",
+    gaiscore > 9 & gaiscore <= 10 ~ "5: Full Acceptance (Full legal and social equality)"
+  )))+
+  tm_polygons("category", palette = "RdYlBu", title = "LGBTQ+ Rights Acceptance")+
+  tm_layout(title = "Global Acceptance of LGBTQ+ Rights")+
+  #tm_layout(bg.color = "skyblue", inner.margins = c(0, .02, .02, .02))+
+  tm_compass()
+```
+
+```{r}
+#Add country names 
+tm_shape(merge_inner |> 
+           filter(!is.na(gaiscore)) |> 
+           mutate(category = case_when(
+    gaiscore <= 3 ~ "1: Critical Situation (Urgent need for improvement)",
+    gaiscore > 3 & gaiscore <= 5 ~ "2: Limited Acceptance (Some rights recognized)",
+    gaiscore > 5 & gaiscore <= 7 ~ "3: Moderate Acceptance (Legal protections in place)",
+    gaiscore > 7 & gaiscore <= 9 ~ "4: Broad Acceptance (Widespread social acceptance)",
+    gaiscore > 9 & gaiscore <= 10 ~ "5: Full Acceptance (Full legal and social equality)"
+  )))+
+  tm_polygons("category", palette = "RdYlBu", title = "LGBTQ+ Rights Acceptance")+
+  tm_layout(title = "Global Acceptance of LGBTQ+ Rights")+
+  tm_compass()+
+  tm_layout(bg.color = "skyblue", inner.margins = c(0, .02, .02, .02))+
+  tm_text("name", size = "AREA")
+head(merge_inner)
+```
+
+```{r}
+#Add country iso code 
+#tmap_style("classic") #setting classic style 
+tm_shape(merge_inner |> 
+           filter(!is.na(gaiscore)) |> 
+           mutate(category = case_when(
+    gaiscore <= 3 ~ "1: Critical Situation (Urgent need for improvement)",
+    gaiscore > 3 & gaiscore <= 5 ~ "2: Limited Acceptance (Some rights recognized)",
+    gaiscore > 5 & gaiscore <= 7 ~ "3: Moderate Acceptance (Legal protections in place)",
+    gaiscore > 7 & gaiscore <= 9 ~ "4: Broad Acceptance (Widespread social acceptance)",
+    gaiscore > 9 & gaiscore <= 10 ~ "5: Full Acceptance (Full legal and social equality)"
+  )))+
+  tm_polygons("category", palette = "RdYlBu", title = "LGBTQ+ Rights Acceptance")+
+  tm_layout(title = "Global Acceptance of LGBTQ+ Rights")+
+  tm_compass()+
+  tm_text("iso_a3", size = "AREA")
+
+
+
+
+#Data Transformation and Map creation separately 
+processed_data <- merge_inner |> # Preprocess the data to filter and mutate
+  filter(!is.na(gaiscore)) |>
+  mutate(category = case_when(
+    gaiscore <= 3 ~ "1: Critical Situation (Urgent need for improvement)",
+    gaiscore > 3 & gaiscore <= 5 ~ "2: Limited Acceptance (Some rights recognized)",
+    gaiscore > 5 & gaiscore <= 7 ~ "3: Moderate Acceptance (Legal protections in place)",
+    gaiscore > 7 & gaiscore <= 9 ~ "4: Broad Acceptance (Widespread social acceptance)",
+    gaiscore > 9 & gaiscore <= 10 ~ "5:Full Acceptance (Full legal and social equality)"
+  ))
+
+tm_shape(processed_data) + # Create the map
+  tm_borders(lwd = 0.5) +  # Add borders
+  tm_polygons("category", 
+              palette = "RdYlBu", 
+              title = "LGBTQ+ Rights Acceptance",
+              id = "iso_a3") +  # Add polygons colored by category
+  tm_text("iso_a3", size = "AREA", col = "black") +  # Add country names
+  tm_layout(title = "Global Acceptance of LGBTQ+ Rights") +  # Set the title
+  tm_layout(legend.text.size = 0.7) +  # Customize layout
+  tm_scale_bar() +  # Add scale bar
+  tm_compass()  # Add North arrow
+```
+
+```{r}
+# Facetig
+tm_shape(merge_inner) +
+    tm_polygons(c("gaiscore", "economy", "dv_pts", "regime_status_name")) +
+    tm_facets(sync = TRUE)
+```
+
+```{r}
+tm_shape(merge_inner |> 
+           filter(!is.na(gaiscore)) |> 
+           mutate(category = case_when(
+    gaiscore <= 3 ~ "1: Critical Situation",
+    gaiscore > 3 & gaiscore <= 5 ~ "2: Limited Acceptance",
+    gaiscore > 5 & gaiscore <= 7 ~ "3: Moderate Acceptance",
+    gaiscore > 7 & gaiscore <= 9 ~ "4: Broad Acceptance",
+    gaiscore > 9 & gaiscore <= 10 ~ "5: Full Acceptance"
+  )))+
+  tm_polygons("category", palette = "RdYlBu", title = "LGBTQ+ Rights Acceptance")+
+  tm_layout(title = "Global Acceptance of LGBTQ+ Rights")+
+  tm_compass()+
+  tm_text("name", size = "AREA")+
+  tm_facets(by = "continent")
+```
+
+```{r}
+#look them together in an arranged plot 
+tmap_style("cobalt") #check with white or cobalt
+
+p1<-tm_shape(merge_inner |> 
+           filter(!is.na(gaiscore)) |> 
+           mutate(category = case_when(
+    gaiscore <= 3 ~ "1: Critical Situation",
+    gaiscore > 3 & gaiscore <= 5 ~ "2: Limited Acceptance",
+    gaiscore > 5 & gaiscore <= 7 ~ "3: Moderate Acceptance",
+    gaiscore > 7 & gaiscore <= 9 ~ "4: Broad Acceptance",
+    gaiscore > 9 & gaiscore <= 10 ~ "5: Full Acceptance"
+  )))+
+  tm_polygons("category", palette = "RdYlBu", title = "LGBTQ+ Rights Acceptance")+
+  tm_layout(title = "Global Acceptance of LGBTQ+ Rights")+
+  tm_compass()+
+  tm_text("iso_a3", size = "AREA")
+
+
+p2<-tm_shape(merge_inner |> 
+               mutate(rep= case_when(
+                                  dv_pts == 0 ~ "6: Advanced LGBTQ+ rights",
+                                  dv_pts == 1 ~ "5: Failed to protect",
+                                  dv_pts == 2 ~ "4: Limited repression",
+                                  dv_pts == 3 ~ "3: Occasional repression",
+                                  dv_pts == 4 ~ "2: Widespread repression",
+                                  dv_pts == 5 ~ "1: Systemic repression")) |>
+             filter(!is.na(rep)))+
+  tm_polygons("rep", palette = "RdYlBu", title = "Repression against Sexual Minorities")+
+  tm_layout(title = "State Repression against Sexual Minorities")+
+  tm_compass()+
+  tm_text("iso_a3", size = "AREA")
+tmap_arrange(p1, p2)
+```
+
+```{r}
+ # Add Multiple shapes and layers
+data(World, metro, rivers, land)
+tm_shape(land) + 
+    tm_raster() +
+tm_shape(World) +
+    tm_borders("white", lwd = 0.5) +
+    tm_text("iso_a3", size = "AREA") +
+tm_shape(metro) +
+    tm_symbols(col = "red", size = "pop2020", scale = 0.5) +
+tm_legend(show = FALSE) +
+tm_layout(title = "Elevation and Metropolitan Areas")
+```
+
+```{r}
+#Let's make it interactive
+#tmap_style("cobalt")
+tmap_mode("view") #simply activate view
+tm_shape(merge_inner) +
+  tm_polygons("gaiscore", palette = "RdYlBu") 
+```
+
+```{r}
+# interactive in an edited form
+tmap_mode("view")
+tm_shape(merge_inner |> 
+           filter(!is.na(gaiscore)) |> 
+           mutate(category = case_when(
+    gaiscore <= 3 ~ "1: Critical Situation (Urgent need for improvement)",
+    gaiscore > 3 & gaiscore <= 5 ~ "2: Limited Acceptance (Some rights recognized)",
+    gaiscore > 5 & gaiscore <= 7 ~ "3: Moderate Acceptance (Legal protections in place)",
+    gaiscore > 7 & gaiscore <= 9 ~ "4: Broad Acceptance (Widespread social acceptance)",
+    gaiscore > 9 & gaiscore <= 10 ~ "5: Full Acceptance (Full legal and social equality)"
+  )))+
+  tm_polygons("category", palette = "RdYlBu", title = "LGBTQ+ Rights Acceptance")+
+  tm_layout(title = "Global Acceptance of LGBTQ+ Rights")+
+  tm_text("iso_a3", size = "AREA")
+```
+
+```{r}
+#Interactive Faceting
+tmap_mode("view")
+tm_shape(merge_inner) +
+    tm_polygons(c("gaiscore", "economy", "dv_pts", "regime_status_name")) +
+    tm_facets(sync = TRUE)
+```
+
+```{r}
+#Change background style 
+#tmap_style("cobalt") #alternatives, cobalt, cobalt_v3, v3
+#tmap_options(bg.color = "black", legend.text.color = "white")
+#tm_shape(merge_inner) +
+ #tm_polygons("gaiscore") #you can add palette = "RdYlBu"
+  
+#tm_shape(merge_inner) +
+  #tm_polygons("gaiscore")+
+  #tm_layout(bg.color = "skyblue", inner.margins = c(0, .02, .02, .02))
+```
+
+### 1.4 Leaflets
+
+ggplot2:
+
+-   R package for creating static data visualizations.
+-   follows the Grammar of Graphics philosophy.
+-   primarily used for creating publication-quality graphics for data analysis and visualization.
+
+Leaflet :
+
+-   JavaScript library for creating interactive web maps.
+-   builds interactive, dynamic maps that can be embedded in web applications.
+-   provides a range of features for working with geographic data, including markers, polygons, pop-ups, and support for various map providers (e.g., OpenStreetMap, Mapbox).
+-   commonly used for creating web-based applications that involve interactive mapping and spatial data visualization.
+-   used by various websites, including The New York Times, The Washington Post, GitHub, and Flickr. For more info, please, check [**Leaflet for R webpage**](http://rstudio.github.io/leaflet/)**.**
+
+```{r}
+#A basic leaflet: let's look at the location of Data Science and Analytics 
+DSA<- leaflet() |>
+  addTiles() |>  
+  addMarkers(lng=-111.9347506, lat=33.4193154, popup="Data Science and Analytics")
+print(DSA)  # Print the map
+```
+
+```{r}
+#get two locations within a rectangle
+two_locations<- leaflet() |>  # Create a Leaflet map
+  addTiles() |>    # adds a base map layer using OpenStreetMap tiles. 
+  addMarkers(lng = c(-74.006, -77.0369), lat = c(40.7128, 38.9072),
+             popup = c("New York City", "Washington, D.C.")) |>    # Add markers with popups
+  addRectangles(
+    lng1 = -80, lat1 = 35, lng2 = -70, lat2 = 45,
+    fillColor = "blue", fillOpacity = 0.2,
+    popup = "Rectangle Area") |>   # Add a polygon layer (rectangle)       
+  setView(lng = -75, lat = 40, zoom = 5)   # Customize the map view
+print(two_locations)          # print the map
+```
+
+```{r}
+#Let's get the pubs, restaurants, and coffee shops on the map in Tempe 
+
+
+# Define bounding box coordinates for Tempe, AZ
+bbox <- c(
+  left = -111.9429779555835,
+  bottom = 33.420643504864074,
+  right = -111.9069399830536,
+  top = 33.442418916376705
+)
+
+
+
+
+# Query OpenStreetMap data for amenities within the bounding box
+osm_query <- opq(bbox) |>
+  add_osm_feature(key = 'amenity', value = c('restaurant', 'pub', 'cafe', 'car_repair'))
+
+osm_data <- osmdata_sf(osm_query)
+foodDrink <- osm_data$osm_points
+
+# Filter out NA values in the amenity column
+foodDrink <- foodDrink[!is.na(foodDrink$amenity), ]
+
+# Define icons for different amenities
+iconSet <- awesomeIconList(
+  pub = makeAwesomeIcon(icon = 'beer', library = 'fa', iconColor = 'gold'),
+  cafe = makeAwesomeIcon(icon = 'coffee', library = 'ion', iconColor = '#000000'),
+  restaurant = makeAwesomeIcon(icon = 'cutlery', library = 'glyphicon', iconColor = 'rgb(192, 255, 0)', spin = TRUE),
+  bar = makeAwesomeIcon(icon = 'home', library = 'glyphicon', iconColor = 'rgb(192, 255, 0)', spin = F)
+)
+
+# Create an interactive Leaflet map
+leaflet(data = foodDrink) %>%
+  addTiles() %>%
+  addAwesomeMarkers(icon = ~iconSet[amenity], group = ~amenity) |>
+  addLegendAwesomeIcon(iconSet = iconSet,
+                       orientation = 'horizontal',
+                       title = htmltools::tags$div(
+                         style = 'font-size: 20px;',
+                         'Horizontal Legend'),
+                       labelStyle = 'font-size: 16px;',
+                       position = 'bottomright',
+                       group = 'Horizontal Legend') |>
+  addLegendAwesomeIcon(iconSet = iconSet,
+                       orientation = 'vertical',
+                       marker = FALSE,
+                       title = htmltools::tags$div(
+                         style = 'font-size: 20px;',
+                         'Vertical Legend'),
+                       labelStyle = 'font-size: 16px;',
+                       position = 'bottomright',
+                       group = 'Vertical Legend') |>
+  addLayersControl(baseGroups = sprintf('%s Legend', 
+                                        c('Horizontal', 'Vertical')),
+                   overlayGroups = c('pub', 'cafe', 'restaurant', 'bar'),
+                   options = layersControlOptions(collapsed = FALSE))
+```
+```{r}
+# Define bounding box coordinates for Colombo
+bbox <- c(
+  left = 79.803962,
+  bottom = 6.885546,
+  right = 79.968757,
+  top = 6.980547
+)
+
+# Query OpenStreetMap data for amenities within the bounding box
+osm_query <- opq(bbox) |>
+  add_osm_feature(key = 'amenity', value = c('restaurant', 'cafe', 'repair'))
+
+osm_data <- osmdata_sf(osm_query)
+carRepair <- osm_data$osm_points
+
+# Filter out NA values in the amenity column
+carRepair <- carRepair[!is.na(carRepair$amenity), ]
+
+# Define icons for different amenities
+iconSet <- awesomeIconList(
+  restaurant = makeAwesomeIcon(icon = 'cutlery', library = 'glyphicon', iconColor = 'rgb(192, 255, 0)', spin = TRUE),
+  cafe = makeAwesomeIcon(icon = 'coffee', library = 'ion', iconColor = '#000000'),
+  car = makeAwesomeIcon(icon = 'car', library = 'glyphicon', iconColor = 'rgb(192, 255, 0)', spin = F)
+)
+
+# Create an interactive Leaflet map
+leaflet(data = carRepair) %>%
+  addTiles() %>%
+  addAwesomeMarkers(icon = ~iconSet[amenity], group = ~amenity) |>
+  addLegendAwesomeIcon(iconSet = iconSet,
+                       orientation = 'horizontal',
+                       title = htmltools::tags$div(
+                         style = 'font-size: 20px;',
+                         'Horizontal Legend'),
+                       labelStyle = 'font-size: 16px;',
+                       position = 'bottomright',
+                       group = 'Horizontal Legend') |>
+  addLegendAwesomeIcon(iconSet = iconSet,
+                       orientation = 'vertical',
+                       marker = FALSE,
+                       title = htmltools::tags$div(
+                         style = 'font-size: 20px;',
+                         'Vertical Legend'),
+                       labelStyle = 'font-size: 16px;',
+                       position = 'bottomright',
+                       group = 'Vertical Legend') |>
+  addLayersControl(baseGroups = sprintf('%s Legend', 
+                                        c('Horizontal', 'Vertical')),
+                   overlayGroups = c('restaurant', 'cafe', 'car_repair'),
+                   options = layersControlOptions(collapsed = FALSE))
+```
+
+```{r}
+# Define bounding box coordinates for Colombo
+bbox <- c(
+  left = 79.803962,
+  bottom = 6.885546,
+  right = 79.968757,
+  top = 6.980547
+)
+
+# Query OpenStreetMap data for car repair shops within the bounding box
+osm_query <- opq(bbox) |>
+  add_osm_feature(key = 'amenity', value = 'car_repair')
+
+osm_data <- osmdata_sf(osm_query)
+carRepair <- osm_data$osm_points
+
+# Filter out NA values in the amenity column
+carRepair <- carRepair[!is.na(carRepair$amenity), ]
+
+# Define an icon for car repair shops
+iconSet <- awesomeIconList(
+  car_repair = makeAwesomeIcon(icon = 'wrench', library = 'fa', iconColor = 'blue')
+)
+
+# Create an interactive Leaflet map
+leaflet(data = carRepair) %>%
+  addTiles() %>%
+  addAwesomeMarkers(icon = ~iconSet[amenity], group = ~amenity) |>
+  addLegendAwesomeIcon(iconSet = iconSet,
+                       orientation = 'horizontal',
+                       title = htmltools::tags$div(
+                         style = 'font-size: 20px;',
+                         'Amenities in Colombo'),
+                       labelStyle = 'font-size: 16px;',
+                       position = 'bottomright',
+                       group = 'Legend') |>
+  addLayersControl(baseGroups = sprintf('%s Legend', 
+                                        c('Legend')),
+                   overlayGroups = 'car_repair',
+                   options = layersControlOptions(collapsed = FALSE))
+
+```
+
+## 2. Extentions to ggplot
+
+### 2.1 Animations
+
+Animations in R are a way to create a sequence of plots that change over time or through some other variable, giving the appearance of motion or change. They are useful for showing temporal or spatial changes, demonstrating algorithms, or creating other visual effects.
+
+```{r}
+library(datasauRus)
+library(ggplot2)
+library(gganimate)
+
+# fun animation 
+ggplot(datasaurus_dozen, aes(x=x, y=y))+
+  geom_point(aes(color = dataset))+
+  theme_minimal() +
+  transition_states(dataset, 3, 1) + 
+  ease_aes('cubic-in-out')
+```
+
+#### Transition_states
+
+```{r}
+#install.packages('gganimate')
+#install.packages("ggblend")
+library(gganimate)
+library(gapminder)
+
+library(ggblend)
+library(ggthemes)
+library(dplyr)
+library(gganimate)
+library(ggthemes)
+
+merge_inner |>
+  filter(!is.na(regime_status_name), 
+         !is.na(gaiscore),
+         !is.na(continent)) |>
+  ggplot(aes(x = continent, y = gaiscore, color = regime_status_name)) +
+  geom_boxplot() +
+  scale_color_manual(values = c("red", "blue", "darkorange")) +
+  labs(
+    title = "Global Acceptance Index across Political Regimes",
+    x = "Continent",
+    y = "Global Acceptance Index",
+    subtitle = 'Regime: {closest_state}',
+    color = "Regime Type"
+  ) +
+  theme_clean() +
+  guides(color = "none")+
+  transition_states(
+    states = regime_status_name,
+    transition_length = 2,
+    state_length = 1
+  ) +
+  enter_fade() +
+  exit_shrink() +
+  ease_aes('sine-in-out')
+```
+
+#### Transition_time
+
+```{r}
+library(gapminder)
+
+merge_inner |>
+  filter(year > 60)|>
+ggplot(aes(vdem_delibdem, vdem_gender, size = pop, colour = name)) +
+  geom_point(alpha = 0.5, show.legend = FALSE) +
+  scale_size(range = c(2, 12)) +
+  scale_x_log10() +
+  facet_wrap(~continent) +
+  labs(title = 'Year: {frame_time}', x = 'Liberal Democracy', y = 'Women Empowerment') +
+  transition_time(year) +
+  ease_aes('linear')
+```
+
+#### Transition_reveal
+
+```{r}
+newdata<-filter(total, country=='Kuwait'|country=='Saudi Arabia'|country=='United States'|country == "United Kingdom")|>
+  select("country", "polity", "year", "gdp")
+my_palette = c("#DA0000", "#304c00","darkorange","#0872b9" )
+ggplot(newdata, aes(year, gdp, color =  country)) + 
+  geom_line(size =1.5) +
+  labs(title = "Comparative GDP Per Capita",
+       subtitle = "",
+       x = "Year",
+       y = "GDP Per Capita",
+       color = " ") +
+  scale_color_manual(values = my_palette)+
+  ggthemes::theme_fivethirtyeight() + 
+theme(
+plot.title = element_text(size = 30), 
+      axis.title.y = element_text(size = 20),
+      axis.title.x = element_text(size = 20))+
+ transition_reveal(year)
+```
+
+### 2.2 ggstatsplot: ggplot2 Based Plots with Statistical Details
+
+The ggstatsplot package in R blends data visualization and statistical analysis. It merges data analysis steps, creating detailed graphs with built-in statistical info for quicker, more thorough data exploration.
+
+How to Cite: Patil, I. (2021). Visualizations with statistical details: The 'ggstatsplot' approach. Journal of Open Source Software, 6(61), 3167,doi:10.21105/joss.03167
+
+#### ggbetweenstats() function
+
+This function generates a violin plot, a box plot, or a combination of both for comparing groups or conditions, and it includes statistical test results in the subtitle. It can display box and violin plots with scattered data points for between-subject comparisons, adding statistical information as a subtitle in the plot.
+
+Defaults return
+
+✅ raw data + distributions ✅ descriptive statistics ✅ inferential statistics ✅ effect size + CIs ✅ pairwise comparisons ✅ Bayesian hypothesis-testing ✅ Bayesian estimation
+
+For more info about the ggbetweenstats: https://indrajeetpatil.github.io/ggstatsplot/reference/ggbetweenstats.html
+
+```{r}
+
+#install.packages("ggstatsplot")    #How to install 
+library(ggstatsplot)
+
+ggbetweenstats(
+  data  = total,
+  x     = democratic_performance_name,
+  y     = gaiscore,
+  title = "Distribution of Global Acceptance Index across Political Regimes",
+  xlab =   "Regime Types",
+  ylab = "Global Acceptance Index"
+)
+```
+
+```{r}
+#grouped 
+grouped_ggbetweenstats(
+  data             = total,
+  x                = regime_status_name,
+  y                = gaiscore,
+  grouping.var     = colonial, #o means not colonized, 1 means colonized
+  ggsignif.args    = list(textsize = 4, tip_length = 0.01),
+  p.adjust.method  = "bonferroni",
+  palette          = "default_jama",
+  package          = "ggsci",
+  plotgrid.args    = list(nrow = 1),
+  annotation.args  = list(
+                          title = "Distribution of Global Acceptance Index across Political Regimes")
+)
+```
+
+#### ggcoefstats()
+
+The function ggcoefstats() generates plots for regression models saved in a tidy data frame.
+
+Defaults return
+
+✅ inferential statistics ✅ estimate + CIs ✅ model summary (AIC and BIC)
+
+For more info: https://indrajeetpatil.github.io/ggstatsplot/reference/ggcoefstats.html
+
+```{r}
+#install.packages("ggstatsplot")
+#install.packages("lme4")
+library(ggstatsplot)
+library(lme4)
+
+#coefficients plot
+m1 <- stats::glm(formula = dv_pts ~ IdealPointAll + gaiscore + gdp + vdem_delibdem + undp_hdi, 
+                 data = total)
+
+# Named vector for custom labels
+custom_labels <- c(
+  "(Intercept)" = "Intercept", 
+  "IdealPointAll" = "Opposition to Liberal World Order",
+  "gaiscore" = "Global Acceptance Index",
+  "gdp" = "GDP per Capita",
+  "vdem_delibdem" = "Liberal Democracy Index",
+  "undp_hsdi" = "Human Development Index")
+
+# Create the plot with custom labels
+ggcoefstats(m1, labels = custom_labels)
+```
+
+### 2.3 ggpol
+
+The ggpol package enhances ggplot2 by introducing parliamentary diagrams, along with a variety of other visualizations and utility functions. For more info: https://github.com/erocoar/ggpol
+
+```{r}
+#install.packages("ggpol")
+library(ggpol)
+france <- data.frame(
+  parties = factor(c("RE", "DEM", "HOR", "RN", "LFI", "LR", "SOC", "ECO", "GDR", "LIOT", "NI"),
+                   levels = c("RE", "DEM", "HOR", "RN", "LFI", "LR", "SOC", "ECO", "GDR", "LIOT", "NI")),
+  seats   = c(171, 51, 29, 88, 75, 62, 31, 23, 22, 21, 4),
+  colors  = c("blue", "darkblue", "pink", "darkred", "green", "grey", "purple", "orange", "cyan", "brown", "limegreen"),
+  stringsAsFactors = FALSE
+)
+n_parties <- nrow(france)
+ggplot(france) + 
+  geom_parliament(aes(seats = seats, fill = parties), color = "black") + 
+  scale_fill_manual(values = france$colors, labels = france$parties) +
+  coord_fixed() + 
+  labs(x = "Political Parties in France(2022)",
+       y = "",
+       fill = "Parties") +
+  theme_clean() +
+  geom_text(aes(x = 0, y = 0, label = paste("Number of Parties: ", n_parties)),
+            vjust = 1,
+            color = "black")
+
+```
+
+```{r}
+# Make an archbar
+ggplot(france) + 
+  geom_arcbar(aes(shares = seats, r0 = 5, r1 = 10, fill = parties), 
+               sep = 0.1) + 
+  scale_fill_manual(values = france$colors, name = "Political Parties") +
+  coord_fixed() +
+  theme_void() +
+  labs(title = "Composition of the French National Assembly",
+       subtitle = "2022",
+       caption = "")
+```
+
+### 2.4 ggx
+
+This package enables users to input commands in natural language. Input commands are then automatically converted into ggplot commands. For more info :https://github.com/brandmaier/ggx
+
+```{r}
+#install.packages("ggx")
+library(ggx)
+ggplot(data=cars,aes(x=speed, y=dist))+geom_point()+
+  gg_("rotate x-axis labels by 90 degrees")+
+  gg_("increase font size on x-axis label")+
+  gg_("add 'Car Plot' as plot title")+
+  gg_("change x-axis label to 'Speed of Cars'")+
+  gg_("double the font size on the x-axis label")+
+  gg_("paint the plot title in a beautiful orange")
+```

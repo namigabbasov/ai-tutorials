@@ -1,0 +1,219 @@
+---
+title: "Text Analysis 2"
+format: html
+author: Namig Abbasov 
+editor: visual
+---
+
+```{r}
+rm(list = ls())
+#install.packages("stopwords", dependencies = TRUE)
+#install.packages("cowplot", dependencies = TRUE)
+#install.packages("quanteda", dependencies = TRUE)
+#install.packages("quanteda.textplots", dependencies = TRUE)
+#install.packages("quanteda.textstats", dependencies = TRUE)
+#install.packages("quanteda.corpus", dependencies = TRUE)
+#install.packages("gridExtra")
+library(gridExtra)
+library(caret) 
+library(glmnet)
+library(pROC)
+library(plyr)
+library(dplyr)
+library(quanteda)
+library(readtext)
+```
+
+## Set Data Directory and Load Data 
+```{r}
+setwd("/Users/namigabbasov/Desktop/Workshops/Text Analysis 2")
+data_dir<-"/Users/namigabbasov/Desktop/Workshops/Text Analysis 2/"
+UNGD<- readtext(paste0(data_dir, "UNGD/*"), # we import the raw txt files, drawing document metadata from the txt file names 
+                             docvarsfrom = "filenames", 
+                             dvsep="_", 
+                             docvarnames = c("ccodealp", "session", "year"))
+```
+
+## Create Corpus 
+```{r}
+UNGD_corpus <- corpus(UNGD, text_field = "text")  # creating quantida corpus 
+summary(UNGD_corpus)
+```
+## Preprocessing Corpus: Tokenize  
+```{r}
+# tokenize 
+ungd_tokens <- tokens(UNGD_corpus,
+                       what = "word",
+                       remove_punct = TRUE,                            ### remove punctuation  
+                       remove_symbols = TRUE,                          ### remove symbols 
+                       remove_numbers = TRUE,                          ### remove numbers 
+                       remove_url = TRUE,                              ### remove urls 
+                       remove_separators = TRUE)         
+
+
+# **if you prefer stemming and stopword removal before creating DFM**
+#ungd_tokens<- tokens(ungd_tokens) |>                                  ### remove stopwords 
+                 #tokens_remove(stopwords("english"))
+
+#ungd_tokens<- tokens_wordstem (ungd_tokens, language = "english")     ### stemming 
+```
+
+## Document Feature Matrix 
+```{r}
+ungd_dfm<- dfm(ungd_tokens, 
+               tolower = TRUE)                         ### create DFM and lower the terms 
+ungd_dfm[100:150,500:550]                                           ### explore it 
+ungd_df<-convert(ungd_dfm, to = "data.frame")                       ### convert it to data frame for better exploration 
+```
+
+
+## Preporcessing after Creating DFM
+```{r}
+ungd_nonstop<-  dfm_remove(ungd_dfm, pattern = stopwords("en"))                 ### remove stopwords 
+stopwords("en", source = "smart") # english                                     ### wait! what do you mean by "stopwords" 
+stopwords("de")                                                                 ### what about different languages- German
+stopwords("zh", source = "misc")                                                ### Chinese language 
+stopwords("es")                                                                 ### Spanish
+
+ungd_stem <- dfm_wordstem(ungd_nonstop, language = "en")                        ### stemming
+
+ungd_noshort <- dfm_remove(ungd_stem, pattern = "\\b\\w{1,2,3}\\b")             ### remove very short words, e.g., words of length 1 or 2.
+
+ungd_nosparse <- dfm_trim(ungd_noshort, 
+                          min_count = 5)                                  ### Remove sparse terms
+
+
+
+ungd_dfm
+ungd_nonstop
+ungd_stem 
+ungd_noshort
+ungd_nosparse
+
+
+#Now let's explore top words in these versions of DFM to appreciate the importance  of preprocessing 
+top_terms = data.frame("Rank" = 1:50,
+                       "original" = names(topfeatures(ungd_dfm,50)),
+                       "stopword_removed" = names(topfeatures(ungd_nonstop,50)),
+                       "stemmed" = names(topfeatures(ungd_stem,50)),
+                       "no short words" = names(topfeatures(ungd_noshort,50)),
+                       "no infrequent" = names(topfeatures(ungd_nosparse,50)))
+top_terms
+
+
+# **if you prefer prepossessing after creating DFM**
+#ungd_dfm <- dfm_remove(ungd_dfm, pattern = "[[:digit:]]+")            ### Remove numbers
+#ungd_dfm<- dfm_remove(ungd_dfm, pattern = "[[:punct:]]")              ### Remove punctuation
+#ungd_dfm <- dfm_remove(ungd_dfm, pattern = "[ 6- /+=@|&*^%$#].,")     ### Remove special characters and symbols
+```
+
+
+## Explore Key Words in Context 
+```{r}
+kwic(ungd_tokens, "democracy", window=2)
+kwic(ungd_tokens, "ukraine", window=2)
+kwic(ungd_tokens, "war", window=2)
+```
+
+## Plot Three Key Terms from 2021
+```{r}
+dfm_corpus <- dfm(tokens(corpus_subset(UNGD_corpus, year == 2021)))                   ### Create a DFM for the subset of UNGD corpus  
+
+terms_of_interest <- c("democracy", "ukraine", "war")          
+dfm_subset <- dfm_select(dfm_corpus, pattern = terms_of_interest)                     ### Subset the DFM for the terms of interest
+
+document_sums <- rowSums(dfm_subset)                                                  ### Sum the term frequencies for each document and select the top 20
+top_20_indices <- order(document_sums, decreasing = TRUE)[1:20]        
+top_20_docs <- docnames(dfm_corpus)[top_20_indices]
+
+corpus_top_20 <- corpus_subset(UNGD_corpus, docnames(UNGD_corpus) %in% top_20_docs)   ### Subset the corpus for these top 20 documents
+
+
+kwic_democracy <- kwic(tokens(corpus_top_20), pattern = "democracy")                  ### Generate the textplot_xray() for the top 20 documents
+kwic_freedom <- kwic(tokens(corpus_top_20), pattern = "ukraine")
+kwic_war <- kwic(tokens(corpus_top_20), pattern = "war")
+
+textplot_xray(kwic_democracy, scale = "absolute")                                     ### Visualize the KWIC occurrences for each term from the top 20 documents
+textplot_xray(kwic_freedom, scale = "absolute")
+textplot_xray(kwic_war, scale = "absolute")
+```
+
+
+```{r}
+dfm_corpus <- dfm(tokens(corpus_subset(UNGD_corpus, year == 2022)))           ### Create a DFM for the subset of UNGD corpus  
+
+terms_of_interest <- c("democracy", "ukraine", "war")          
+dfm_subset <- dfm_select(dfm_corpus, pattern = terms_of_interest)             ### Subset the DFM for the terms of interest
+
+document_sums <- rowSums(dfm_subset)                                          ### Sum the term frequencies for each document and select the top 20
+top_20_indices <- order(document_sums, decreasing = TRUE)[1:20]        
+top_20_docs <- docnames(dfm_corpus)[top_20_indices]
+
+corpus_top_20 <- corpus_subset(UNGD_corpus, 
+                               docnames(UNGD_corpus) %in% top_20_docs)        ### Subset the corpus for these top 20 documents
+
+
+kwic_democracy <- kwic(tokens(corpus_top_20), pattern = "democracy")          ### Generate the textplot_xray() for the top 20 documents
+kwic_freedom <- kwic(tokens(corpus_top_20), pattern = "ukraine")
+kwic_war <- kwic(tokens(corpus_top_20), pattern = "war")
+
+
+
+textplot_xray(kwic_democracy, scale = "absolute")                             ### Visualize the KWIC occurrences for each term from the top 20 documents
+textplot_xray(kwic_freedom, scale = "absolute")
+textplot_xray(kwic_war, scale = "absolute")
+```
+
+```{r}
+# 2021
+dfm_corpus <- dfm(tokens(corpus_subset(UNGD_corpus, year == 2021)))                   ### Create a DFM for the subset of UNGD corpus  
+terms_of_interest <- c("democracy", "ukraine", "war")          
+dfm_subset <- dfm_select(dfm_corpus, pattern = terms_of_interest)                     ### Subset the DFM for the terms of interest
+document_sums <- rowSums(dfm_subset)                                                  ### Sum the term frequencies for each document and select the top 20
+top_20_indices <- order(document_sums, decreasing = TRUE)[1:20]        
+top_20_docs <- docnames(dfm_corpus)[top_20_indices]
+corpus_top_20 <- corpus_subset(UNGD_corpus, docnames(UNGD_corpus) %in% top_20_docs)   ### Subset the corpus for these top 20 documents
+kwic_democracy <- kwic(tokens(corpus_top_20), pattern = "democracy")                  ### Generate the textplot_xray() for the top 20 documents
+kwic_freedom <- kwic(tokens(corpus_top_20), pattern = "ukraine")
+kwic_war <- kwic(tokens(corpus_top_20), pattern = "war")
+p1<-textplot_xray(kwic_democracy, scale = "absolute")                                ### Visualize the KWIC occurrences for each term from the top 20 documents
+p2<-textplot_xray(kwic_freedom, scale = "absolute")
+p3<-textplot_xray(kwic_war, scale = "absolute")
+
+# 2022
+dfm_corpus <- dfm(tokens(corpus_subset(UNGD_corpus, year == 2022)))                 ### Create a DFM for the subset of UNGD corpus  
+terms_of_interest <- c("democracy", "ukraine", "war")          
+dfm_subset <- dfm_select(dfm_corpus, pattern = terms_of_interest)                   ### Subset the DFM for the terms of interest\
+document_sums <- rowSums(dfm_subset)                                                ### Sum the term frequencies for each document and select the top 20
+top_20_indices <- order(document_sums, decreasing = TRUE)[1:20]        
+top_20_docs <- docnames(dfm_corpus)[top_20_indices]
+corpus_top_20 <- corpus_subset(UNGD_corpus, 
+                               docnames(UNGD_corpus) %in% top_20_docs)             ### Subset the corpus for these top 20 documents
+kwic_democracy <- kwic(tokens(corpus_top_20), pattern = "democracy")               ### Generate the textplot_xray() for the top 20 documents
+kwic_freedom <- kwic(tokens(corpus_top_20), pattern = "ukraine")
+kwic_war <- kwic(tokens(corpus_top_20), pattern = "war")
+p4<-textplot_xray(kwic_democracy, scale = "absolute")                              ### Visualize the KWIC occurrences for each term from the top 20 documents
+p5<-textplot_xray(kwic_freedom, scale = "absolute")
+p6<-textplot_xray(kwic_war, scale = "absolute")
+
+
+grid.arrange(p1, p2, p3, p4, p5, p6, ncol=2)                                      ### putting in grid 
+```
+
+
+```{r}
+kwic(UNGD_corpus, pattern = phrase("democracy"), 
+     window=6)
+```
+
+
+## Word Clouds 
+```{r}
+textplot_wordcloud(dfm_select(ungd_dfm, pattern = stopwords("english"), selection = "remove"), 
+                   rotation = 0.25, 
+                   max_words = 200,
+                   color = rev(RColorBrewer::brewer.pal(10, "RdBu")))
+```
+
+
+
